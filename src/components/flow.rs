@@ -3,7 +3,7 @@
 use crate::components::edge::{ConnectionLine, EdgeComponent};
 use crate::components::node::NodeComponent;
 use crate::hooks::FlowState;
-use crate::types::{Edge, HandlePosition, NodeId, Position, SelectionRect, Viewport};
+use crate::types::{Edge, FlowEvent, HandlePosition, NodeId, Position, SelectionRect, Viewport};
 use dioxus::html::geometry::WheelDelta;
 use dioxus::prelude::*;
 
@@ -254,6 +254,11 @@ pub fn Flow<T: Clone + Default + PartialEq + 'static>(props: FlowProps<T>) -> El
                     if let Some(handler) = &on_node_drag {
                         handler.call((node_id.clone(), new_pos));
                     }
+                    // Emit event for centralized handling
+                    state.write().emit_event(FlowEvent::NodeDrag {
+                        id: node_id.clone(),
+                        position: new_pos,
+                    });
                 }
 
                 dragging_node.set(Some((node_id, current_pos)));
@@ -550,8 +555,10 @@ pub fn Flow<T: Clone + Default + PartialEq + 'static>(props: FlowProps<T>) -> El
                 }
             }
             if let Some(handler) = &on_node_click {
-                handler.call(node_id);
+                handler.call(node_id.clone());
             }
+            // Emit event for centralized handling
+            state.write().emit_event(FlowEvent::NodeClick(node_id));
         }
     };
 
@@ -592,10 +599,18 @@ pub fn Flow<T: Clone + Default + PartialEq + 'static>(props: FlowProps<T>) -> El
         if state.read().connection.is_some() {
             state.write().save_to_history();
         }
-        if let Some(edge) = state.write().complete_connection(node_id, handle_pos) {
+        let edge = state.write().complete_connection(node_id.clone(), handle_pos);
+        if let Some(edge) = edge {
             if let Some(handler) = &on_connect {
-                handler.call(edge);
+                handler.call(edge.clone());
             }
+            // Emit event for centralized handling
+            state.write().emit_event(FlowEvent::Connect {
+                source: edge.source.clone(),
+                source_handle: edge.source_handle,
+                target: edge.target.clone(),
+                target_handle: edge.target_handle,
+            });
         }
     };
 
@@ -616,8 +631,10 @@ pub fn Flow<T: Clone + Default + PartialEq + 'static>(props: FlowProps<T>) -> El
                 }
             }
             if let Some(handler) = &on_edge_click {
-                handler.call(edge_id);
+                handler.call(edge_id.clone());
             }
+            // Emit event for centralized handling
+            state.write().emit_event(FlowEvent::EdgeClick(edge_id));
         }
     };
 

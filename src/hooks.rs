@@ -5,7 +5,7 @@ use crate::types::{
     Node, NodeId, PendingConnection, Position, SelectionRect, SnapGrid, Viewport,
 };
 use dioxus::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 /// Maximum history size for undo/redo.
 const MAX_HISTORY_SIZE: usize = 100;
@@ -48,6 +48,8 @@ pub struct FlowState<T: Clone + PartialEq + 'static = ()> {
     pub max_z_index: i32,
     /// Connection validator function result cache.
     pub connection_valid: bool,
+    /// Event queue for centralized event handling.
+    pub events: VecDeque<FlowEvent>,
 }
 
 impl<T: Clone + Default + PartialEq + 'static> Default for FlowState<T> {
@@ -74,6 +76,7 @@ impl<T: Clone + Default + PartialEq + 'static> FlowState<T> {
             redo_stack: Vec::new(),
             max_z_index: 0,
             connection_valid: true,
+            events: VecDeque::new(),
         }
     }
 
@@ -95,6 +98,7 @@ impl<T: Clone + Default + PartialEq + 'static> FlowState<T> {
             redo_stack: Vec::new(),
             max_z_index: max_z,
             connection_valid: true,
+            events: VecDeque::new(),
         }
     }
 
@@ -773,6 +777,26 @@ impl<T: Clone + Default + PartialEq + 'static> FlowState<T> {
         nodes.sort_by_key(|n| n.z_index);
         nodes
     }
+
+    /// Emit an event to the event queue.
+    pub fn emit_event(&mut self, event: FlowEvent) {
+        self.events.push_back(event);
+    }
+
+    /// Drain all events from the queue, returning them as a vector.
+    pub fn drain_events(&mut self) -> Vec<FlowEvent> {
+        self.events.drain(..).collect()
+    }
+
+    /// Check if there are pending events.
+    pub fn has_events(&self) -> bool {
+        !self.events.is_empty()
+    }
+
+    /// Get the number of pending events.
+    pub fn event_count(&self) -> usize {
+        self.events.len()
+    }
 }
 
 /// Hook to use flow state.
@@ -783,14 +807,36 @@ pub fn use_flow<T: Clone + Default + PartialEq + 'static>(
     use_signal(|| FlowState::with_nodes_and_edges(initial_nodes, initial_edges))
 }
 
-/// Hook to handle flow events.
-pub fn use_flow_events<F>(mut handler: F)
+/// Hook to handle flow events from a FlowState signal.
+///
+/// This hook processes all pending events from the flow state and calls
+/// the handler for each event. Events are drained from the queue after processing.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let state: Signal<FlowState<MyData>> = use_signal(|| FlowState::new());
+///
+/// use_flow_events(state, |event| {
+///     match event {
+///         FlowEvent::NodeClick(id) => println!("Node clicked: {}", id),
+///         FlowEvent::Connect { source, target, .. } => {
+///             println!("Connected {} to {}", source, target);
+///         }
+///         _ => {}
+///     }
+/// });
+/// ```
+pub fn use_flow_events<T, F>(mut state: Signal<FlowState<T>>, mut handler: F)
 where
+    T: Clone + Default + PartialEq + 'static,
     F: FnMut(FlowEvent) + 'static,
 {
-    use_hook(move || {
-        // This is a placeholder for event handling
-        // In a real implementation, we'd set up a channel or callback system
-        let _ = &mut handler;
+    use_effect(move || {
+        // Drain and process all pending events
+        let events = state.write().drain_events();
+        for event in events {
+            handler(event);
+        }
     });
 }

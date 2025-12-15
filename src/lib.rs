@@ -46,7 +46,7 @@ pub mod prelude {
     pub use crate::components::selection_box::{SelectionBox, SelectionBoxState, SELECTION_BOX_STYLES};
 
     // Hooks
-    pub use crate::hooks::{use_flow, FlowState};
+    pub use crate::hooks::{use_flow, use_flow_events, FlowState};
 
     // Types
     pub use crate::types::*;
