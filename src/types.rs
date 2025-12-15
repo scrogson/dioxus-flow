@@ -220,18 +220,26 @@ pub struct Node<T = ()> {
     pub data: T,
     /// Whether the node is selected.
     pub selected: bool,
+    /// Whether the node is selectable.
+    pub selectable: bool,
     /// Whether the node is draggable.
     pub draggable: bool,
+    /// Whether the node is deletable.
+    pub deletable: bool,
     /// Whether the node is connectable (legacy, use handles for fine control).
     pub connectable: bool,
     /// Connection handles on this node.
     pub handles: Vec<NodeHandle>,
     /// Node type for custom rendering.
     pub node_type: String,
+    /// Z-index for layering (higher = on top).
+    pub z_index: i32,
     /// Additional CSS classes.
     pub class: String,
     /// Additional styles.
     pub style: HashMap<String, String>,
+    /// Movement extent/bounds (min_x, min_y, max_x, max_y). None = no bounds.
+    pub extent: Option<NodeExtent>,
 }
 
 impl<T: Default> Node<T> {
@@ -244,15 +252,19 @@ impl<T: Default> Node<T> {
             height: None,
             data: T::default(),
             selected: false,
+            selectable: true,
             draggable: true,
+            deletable: true,
             connectable: true,
             handles: vec![
                 NodeHandle::target("target").with_position(HandlePosition::Top),
                 NodeHandle::source("source").with_position(HandlePosition::Bottom),
             ],
             node_type: "default".to_string(),
+            z_index: 0,
             class: String::new(),
             style: HashMap::new(),
+            extent: None,
         }
     }
 
@@ -265,12 +277,16 @@ impl<T: Default> Node<T> {
             height: None,
             data: T::default(),
             selected: false,
+            selectable: true,
             draggable: true,
+            deletable: true,
             connectable: false,
             handles: Vec::new(),
             node_type: "default".to_string(),
+            z_index: 0,
             class: String::new(),
             style: HashMap::new(),
+            extent: None,
         }
     }
 }
@@ -297,6 +313,30 @@ impl<T> Node<T> {
     /// Set whether the node is connectable.
     pub fn with_connectable(mut self, connectable: bool) -> Self {
         self.connectable = connectable;
+        self
+    }
+
+    /// Set whether the node is selectable.
+    pub fn with_selectable(mut self, selectable: bool) -> Self {
+        self.selectable = selectable;
+        self
+    }
+
+    /// Set whether the node is deletable.
+    pub fn with_deletable(mut self, deletable: bool) -> Self {
+        self.deletable = deletable;
+        self
+    }
+
+    /// Set the z-index for layering.
+    pub fn with_z_index(mut self, z_index: i32) -> Self {
+        self.z_index = z_index;
+        self
+    }
+
+    /// Set the movement extent/bounds.
+    pub fn with_extent(mut self, extent: NodeExtent) -> Self {
+        self.extent = Some(extent);
         self
     }
 
@@ -437,6 +477,10 @@ pub struct Edge {
     pub animated: bool,
     /// Whether the edge is selected.
     pub selected: bool,
+    /// Whether the edge is selectable.
+    pub selectable: bool,
+    /// Whether the edge is deletable.
+    pub deletable: bool,
     /// Edge label.
     pub label: Option<String>,
     /// Edge color.
@@ -461,6 +505,8 @@ impl Edge {
             edge_type: EdgeType::default(),
             animated: false,
             selected: false,
+            selectable: true,
+            deletable: true,
             label: None,
             stroke: "#b1b1b7".to_string(),
             stroke_width: 2.0,
@@ -487,11 +533,25 @@ impl Edge {
             edge_type: EdgeType::default(),
             animated: false,
             selected: false,
+            selectable: true,
+            deletable: true,
             label: None,
             stroke: "#b1b1b7".to_string(),
             stroke_width: 2.0,
             class: String::new(),
         }
+    }
+
+    /// Set whether the edge is selectable.
+    pub fn with_selectable(mut self, selectable: bool) -> Self {
+        self.selectable = selectable;
+        self
+    }
+
+    /// Set whether the edge is deletable.
+    pub fn with_deletable(mut self, deletable: bool) -> Self {
+        self.deletable = deletable;
+        self
     }
 
     /// Set source handle position.
@@ -764,6 +824,148 @@ pub struct KeyboardModifiers {
     pub ctrl: bool,
     pub alt: bool,
     pub meta: bool,
+}
+
+impl KeyboardModifiers {
+    /// Create from a keyboard event.
+    pub fn from_keyboard_event(shift: bool, ctrl: bool, alt: bool, meta: bool) -> Self {
+        Self {
+            shift,
+            ctrl,
+            alt,
+            meta,
+        }
+    }
+}
+
+/// Node extent/bounds for constraining movement.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NodeExtent {
+    /// Minimum X position.
+    pub min_x: f64,
+    /// Minimum Y position.
+    pub min_y: f64,
+    /// Maximum X position.
+    pub max_x: f64,
+    /// Maximum Y position.
+    pub max_y: f64,
+}
+
+impl NodeExtent {
+    /// Create a new extent.
+    pub fn new(min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Self {
+        Self {
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        }
+    }
+
+    /// Create an extent that constrains to a parent node.
+    pub fn parent(parent_width: f64, parent_height: f64) -> Self {
+        Self {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: parent_width,
+            max_y: parent_height,
+        }
+    }
+
+    /// Clamp a position to this extent.
+    pub fn clamp(&self, position: Position, node_width: f64, node_height: f64) -> Position {
+        Position {
+            x: position.x.clamp(self.min_x, self.max_x - node_width),
+            y: position.y.clamp(self.min_y, self.max_y - node_height),
+        }
+    }
+}
+
+/// Interactivity configuration for the flow.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct InteractivityConfig {
+    /// Whether nodes can be dragged.
+    pub nodes_draggable: bool,
+    /// Whether nodes can be connected.
+    pub nodes_connectable: bool,
+    /// Whether nodes are selectable.
+    pub nodes_selectable: bool,
+    /// Whether edges are selectable.
+    pub edges_selectable: bool,
+    /// Whether elements can be deleted with keyboard.
+    pub elements_deletable: bool,
+    /// Whether panning is enabled.
+    pub pan_on_drag: bool,
+    /// Whether to pan on scroll (vs zoom).
+    pub pan_on_scroll: bool,
+    /// Whether zoom on scroll is enabled.
+    pub zoom_on_scroll: bool,
+    /// Whether zoom on pinch is enabled.
+    pub zoom_on_pinch: bool,
+    /// Whether zoom on double-click is enabled.
+    pub zoom_on_double_click: bool,
+    /// Whether to select on drag (box selection).
+    pub selection_on_drag: bool,
+}
+
+impl Default for InteractivityConfig {
+    fn default() -> Self {
+        Self {
+            nodes_draggable: true,
+            nodes_connectable: true,
+            nodes_selectable: true,
+            edges_selectable: true,
+            elements_deletable: true,
+            pan_on_drag: true,
+            pan_on_scroll: false,
+            zoom_on_scroll: true,
+            zoom_on_pinch: true,
+            zoom_on_double_click: true,
+            selection_on_drag: false,
+        }
+    }
+}
+
+/// Default edge options applied to new edges.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DefaultEdgeOptions {
+    /// Default edge type.
+    pub edge_type: EdgeType,
+    /// Default stroke color.
+    pub stroke: String,
+    /// Default stroke width.
+    pub stroke_width: f64,
+    /// Default animated state.
+    pub animated: bool,
+}
+
+impl Default for DefaultEdgeOptions {
+    fn default() -> Self {
+        Self {
+            edge_type: EdgeType::Bezier,
+            stroke: "#b1b1b7".to_string(),
+            stroke_width: 2.0,
+            animated: false,
+        }
+    }
+}
+
+/// Copy/paste clipboard data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClipboardData<T: Clone> {
+    /// Copied nodes.
+    pub nodes: Vec<Node<T>>,
+    /// Copied edges (only those connecting copied nodes).
+    pub edges: Vec<Edge>,
+}
+
+impl<T: Clone> Default for ClipboardData<T> {
+    fn default() -> Self {
+        Self {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+        }
+    }
 }
 
 /// Default node dimensions.
