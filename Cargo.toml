@@ -48,3 +48,7 @@ path = "examples/workflow.rs"
 [[example]]
 name = "full_features"
 path = "examples/full_features.rs"
+
+[[example]]
+name = "multi_handles"
+path = "examples/multi_handles.rs"

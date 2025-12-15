@@ -5,6 +5,7 @@ use std::collections::HashMap;
 /// Unique identifier for nodes and edges.
 pub type NodeId = String;
 pub type EdgeId = String;
+pub type HandleId = String;
 
 /// Position in 2D space.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -70,7 +71,7 @@ pub enum HandlePosition {
 }
 
 impl HandlePosition {
-    /// Get the offset from the node center for this handle position.
+    /// Get the offset from the node origin for this handle position.
     pub fn offset(&self, width: f64, height: f64) -> Position {
         match self {
             HandlePosition::Top => Position::new(width / 2.0, 0.0),
@@ -78,6 +79,129 @@ impl HandlePosition {
             HandlePosition::Bottom => Position::new(width / 2.0, height),
             HandlePosition::Left => Position::new(0.0, height / 2.0),
         }
+    }
+
+    /// Get offset with an index for multiple handles on the same side.
+    /// index: 0-based index, count: total handles on this side
+    pub fn offset_indexed(&self, width: f64, height: f64, index: usize, count: usize) -> Position {
+        if count <= 1 {
+            return self.offset(width, height);
+        }
+
+        let spacing = match self {
+            HandlePosition::Top | HandlePosition::Bottom => width / (count + 1) as f64,
+            HandlePosition::Left | HandlePosition::Right => height / (count + 1) as f64,
+        };
+
+        let pos = spacing * (index + 1) as f64;
+
+        match self {
+            HandlePosition::Top => Position::new(pos, 0.0),
+            HandlePosition::Bottom => Position::new(pos, height),
+            HandlePosition::Left => Position::new(0.0, pos),
+            HandlePosition::Right => Position::new(width, pos),
+        }
+    }
+}
+
+/// Handle type - determines if this is an input or output connection point.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum HandleKind {
+    /// Source/output handle - connections start from here.
+    #[default]
+    Source,
+    /// Target/input handle - connections end here.
+    Target,
+}
+
+/// A connection handle on a node.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NodeHandle {
+    /// Unique identifier for this handle within the node.
+    pub id: HandleId,
+    /// Type of handle (source/output or target/input).
+    pub kind: HandleKind,
+    /// Position on the node (Top, Right, Bottom, Left).
+    pub position: HandlePosition,
+    /// Custom offset as percentage (0.0-1.0) along the edge, or None for auto.
+    /// For Top/Bottom: 0.0 = left edge, 1.0 = right edge
+    /// For Left/Right: 0.0 = top edge, 1.0 = bottom edge
+    pub offset: Option<f64>,
+    /// Whether this handle can accept connections.
+    pub connectable: bool,
+    /// Maximum number of connections (None = unlimited).
+    pub max_connections: Option<usize>,
+    /// Optional label for the handle.
+    pub label: Option<String>,
+}
+
+impl NodeHandle {
+    /// Create a new source (output) handle.
+    pub fn source(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            kind: HandleKind::Source,
+            position: HandlePosition::Right,
+            offset: None,
+            connectable: true,
+            max_connections: None,
+            label: None,
+        }
+    }
+
+    /// Create a new target (input) handle.
+    pub fn target(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            kind: HandleKind::Target,
+            position: HandlePosition::Left,
+            offset: None,
+            connectable: true,
+            max_connections: None,
+            label: None,
+        }
+    }
+
+    /// Set the position.
+    pub fn with_position(mut self, position: HandlePosition) -> Self {
+        self.position = position;
+        self
+    }
+
+    /// Set custom offset (0.0-1.0).
+    pub fn with_offset(mut self, offset: f64) -> Self {
+        self.offset = Some(offset.clamp(0.0, 1.0));
+        self
+    }
+
+    /// Set maximum connections.
+    pub fn with_max_connections(mut self, max: usize) -> Self {
+        self.max_connections = Some(max);
+        self
+    }
+
+    /// Set a label.
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// Calculate the absolute position of this handle on a node.
+    pub fn absolute_position(&self, node_pos: Position, width: f64, height: f64) -> Position {
+        let offset = if let Some(pct) = self.offset {
+            // Custom percentage offset
+            match self.position {
+                HandlePosition::Top => Position::new(width * pct, 0.0),
+                HandlePosition::Bottom => Position::new(width * pct, height),
+                HandlePosition::Left => Position::new(0.0, height * pct),
+                HandlePosition::Right => Position::new(width, height * pct),
+            }
+        } else {
+            // Default center position
+            self.position.offset(width, height)
+        };
+
+        Position::new(node_pos.x + offset.x, node_pos.y + offset.y)
     }
 }
 
@@ -98,8 +222,10 @@ pub struct Node<T = ()> {
     pub selected: bool,
     /// Whether the node is draggable.
     pub draggable: bool,
-    /// Whether the node is connectable.
+    /// Whether the node is connectable (legacy, use handles for fine control).
     pub connectable: bool,
+    /// Connection handles on this node.
+    pub handles: Vec<NodeHandle>,
     /// Node type for custom rendering.
     pub node_type: String,
     /// Additional CSS classes.
@@ -109,7 +235,7 @@ pub struct Node<T = ()> {
 }
 
 impl<T: Default> Node<T> {
-    /// Create a new node with default data.
+    /// Create a new node with default data and default handles (top target, bottom source).
     pub fn new(id: impl Into<String>, x: f64, y: f64) -> Self {
         Self {
             id: id.into(),
@@ -120,6 +246,28 @@ impl<T: Default> Node<T> {
             selected: false,
             draggable: true,
             connectable: true,
+            handles: vec![
+                NodeHandle::target("target").with_position(HandlePosition::Top),
+                NodeHandle::source("source").with_position(HandlePosition::Bottom),
+            ],
+            node_type: "default".to_string(),
+            class: String::new(),
+            style: HashMap::new(),
+        }
+    }
+
+    /// Create a new node with no handles.
+    pub fn new_without_handles(id: impl Into<String>, x: f64, y: f64) -> Self {
+        Self {
+            id: id.into(),
+            position: Position::new(x, y),
+            width: None,
+            height: None,
+            data: T::default(),
+            selected: false,
+            draggable: true,
+            connectable: false,
+            handles: Vec::new(),
             node_type: "default".to_string(),
             class: String::new(),
             style: HashMap::new(),
@@ -171,6 +319,67 @@ impl<T> Node<T> {
         self
     }
 
+    /// Set custom handles (replaces default handles).
+    pub fn with_handles(mut self, handles: Vec<NodeHandle>) -> Self {
+        self.handles = handles;
+        self.connectable = !self.handles.is_empty();
+        self
+    }
+
+    /// Add a single handle.
+    pub fn with_handle(mut self, handle: NodeHandle) -> Self {
+        self.handles.push(handle);
+        self.connectable = true;
+        self
+    }
+
+    /// Add multiple input handles on the left side.
+    pub fn with_inputs(mut self, labels: &[&str]) -> Self {
+        let count = labels.len();
+        for (i, label) in labels.iter().enumerate() {
+            let offset = (i + 1) as f64 / (count + 1) as f64;
+            self.handles.push(
+                NodeHandle::target(format!("input-{}", i))
+                    .with_position(HandlePosition::Left)
+                    .with_offset(offset)
+                    .with_label(label.to_string()),
+            );
+        }
+        self.connectable = true;
+        self
+    }
+
+    /// Add multiple output handles on the right side.
+    pub fn with_outputs(mut self, labels: &[&str]) -> Self {
+        let count = labels.len();
+        for (i, label) in labels.iter().enumerate() {
+            let offset = (i + 1) as f64 / (count + 1) as f64;
+            self.handles.push(
+                NodeHandle::source(format!("output-{}", i))
+                    .with_position(HandlePosition::Right)
+                    .with_offset(offset)
+                    .with_label(label.to_string()),
+            );
+        }
+        self.connectable = true;
+        self
+    }
+
+    /// Get a handle by ID.
+    pub fn get_handle(&self, handle_id: &str) -> Option<&NodeHandle> {
+        self.handles.iter().find(|h| h.id == handle_id)
+    }
+
+    /// Get all source (output) handles.
+    pub fn source_handles(&self) -> impl Iterator<Item = &NodeHandle> {
+        self.handles.iter().filter(|h| h.kind == HandleKind::Source)
+    }
+
+    /// Get all target (input) handles.
+    pub fn target_handles(&self) -> impl Iterator<Item = &NodeHandle> {
+        self.handles.iter().filter(|h| h.kind == HandleKind::Target)
+    }
+
     /// Get the center position of the node.
     pub fn center(&self) -> Position {
         let w = self.width.unwrap_or(150.0);
@@ -178,12 +387,20 @@ impl<T> Node<T> {
         Position::new(self.position.x + w / 2.0, self.position.y + h / 2.0)
     }
 
-    /// Get handle position for a given handle position type.
+    /// Get handle position for a given handle position type (legacy).
     pub fn handle_position(&self, handle_pos: HandlePosition) -> Position {
         let w = self.width.unwrap_or(150.0);
         let h = self.height.unwrap_or(40.0);
         let offset = handle_pos.offset(w, h);
         Position::new(self.position.x + offset.x, self.position.y + offset.y)
+    }
+
+    /// Get handle position by handle ID.
+    pub fn handle_position_by_id(&self, handle_id: &str) -> Option<Position> {
+        let w = self.width.unwrap_or(150.0);
+        let h = self.height.unwrap_or(40.0);
+        self.get_handle(handle_id)
+            .map(|handle| handle.absolute_position(self.position, w, h))
     }
 }
 
@@ -206,10 +423,14 @@ pub struct Edge {
     pub source: NodeId,
     /// Target node ID.
     pub target: NodeId,
-    /// Source handle position.
+    /// Source handle position (legacy, use source_handle_id for multiple handles).
     pub source_handle: HandlePosition,
-    /// Target handle position.
+    /// Target handle position (legacy, use target_handle_id for multiple handles).
     pub target_handle: HandlePosition,
+    /// Source handle ID (takes precedence over source_handle if set).
+    pub source_handle_id: Option<HandleId>,
+    /// Target handle ID (takes precedence over target_handle if set).
+    pub target_handle_id: Option<HandleId>,
     /// Edge type for rendering.
     pub edge_type: EdgeType,
     /// Whether the edge is animated.
@@ -227,7 +448,7 @@ pub struct Edge {
 }
 
 impl Edge {
-    /// Create a new edge.
+    /// Create a new edge using default handles.
     pub fn new(id: impl Into<String>, source: impl Into<String>, target: impl Into<String>) -> Self {
         Self {
             id: id.into(),
@@ -235,6 +456,34 @@ impl Edge {
             target: target.into(),
             source_handle: HandlePosition::Bottom,
             target_handle: HandlePosition::Top,
+            source_handle_id: None,
+            target_handle_id: None,
+            edge_type: EdgeType::default(),
+            animated: false,
+            selected: false,
+            label: None,
+            stroke: "#b1b1b7".to_string(),
+            stroke_width: 2.0,
+            class: String::new(),
+        }
+    }
+
+    /// Create a new edge connecting specific handles by ID.
+    pub fn new_with_handles(
+        id: impl Into<String>,
+        source: impl Into<String>,
+        source_handle: impl Into<String>,
+        target: impl Into<String>,
+        target_handle: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            source: source.into(),
+            target: target.into(),
+            source_handle: HandlePosition::Right, // Fallback
+            target_handle: HandlePosition::Left,  // Fallback
+            source_handle_id: Some(source_handle.into()),
+            target_handle_id: Some(target_handle.into()),
             edge_type: EdgeType::default(),
             animated: false,
             selected: false,
@@ -254,6 +503,18 @@ impl Edge {
     /// Set target handle position.
     pub fn with_target_handle(mut self, position: HandlePosition) -> Self {
         self.target_handle = position;
+        self
+    }
+
+    /// Set source handle by ID.
+    pub fn with_source_handle_id(mut self, handle_id: impl Into<String>) -> Self {
+        self.source_handle_id = Some(handle_id.into());
+        self
+    }
+
+    /// Set target handle by ID.
+    pub fn with_target_handle_id(mut self, handle_id: impl Into<String>) -> Self {
+        self.target_handle_id = Some(handle_id.into());
         self
     }
 
@@ -299,8 +560,10 @@ impl Edge {
 pub struct Connection {
     /// Source node ID.
     pub source: NodeId,
-    /// Source handle position.
+    /// Source handle position (legacy).
     pub source_handle: HandlePosition,
+    /// Source handle ID (if using multiple handles).
+    pub source_handle_id: Option<HandleId>,
     /// Current mouse position (target).
     pub target_position: Position,
 }

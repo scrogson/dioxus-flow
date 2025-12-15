@@ -217,6 +217,23 @@ impl<T: Clone + Default + PartialEq + 'static> FlowState<T> {
         self.connection = Some(Connection {
             source: node_id,
             source_handle: handle_position,
+            source_handle_id: None,
+            target_position: position,
+        });
+    }
+
+    /// Start a new connection from a specific handle ID.
+    pub fn start_connection_from_handle(
+        &mut self,
+        node_id: NodeId,
+        handle_id: String,
+        handle_position: crate::types::HandlePosition,
+        position: Position,
+    ) {
+        self.connection = Some(Connection {
+            source: node_id,
+            source_handle: handle_position,
+            source_handle_id: Some(handle_id),
             target_position: position,
         });
     }
@@ -239,19 +256,37 @@ impl<T: Clone + Default + PartialEq + 'static> FlowState<T> {
         target: NodeId,
         target_handle: crate::types::HandlePosition,
     ) -> Option<Edge> {
+        self.complete_connection_to_handle(target, target_handle, None)
+    }
+
+    /// Complete a connection to a target handle with optional handle ID.
+    pub fn complete_connection_to_handle(
+        &mut self,
+        target: NodeId,
+        target_handle: crate::types::HandlePosition,
+        target_handle_id: Option<String>,
+    ) -> Option<Edge> {
         if let Some(conn) = self.connection.take() {
             // Don't connect a node to itself
             if conn.source == target {
                 return None;
             }
 
-            let edge = Edge::new(
+            let mut edge = Edge::new(
                 format!("e{}-{}", conn.source, target),
                 conn.source.clone(),
                 target,
             )
             .with_source_handle(conn.source_handle)
             .with_target_handle(target_handle);
+
+            // Set handle IDs if available
+            if let Some(src_handle_id) = conn.source_handle_id {
+                edge = edge.with_source_handle_id(src_handle_id);
+            }
+            if let Some(tgt_handle_id) = target_handle_id {
+                edge = edge.with_target_handle_id(tgt_handle_id);
+            }
 
             self.add_edge(edge.clone());
             Some(edge)
