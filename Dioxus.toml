@@ -1,0 +1,18 @@
+[application]
+name = "dioxus-flow"
+default_platform = "web"
+
+[web.app]
+title = "Dioxus Flow"
+
+[web.watcher]
+reload_html = true
+watch_path = ["src", "examples"]
+
+[web.resource]
+style = []
+script = []
+
+[web.resource.dev]
+style = []
+script = []

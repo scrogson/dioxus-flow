@@ -1,0 +1,41 @@
+[package]
+name = "dioxus-flow"
+version = "0.1.0"
+edition = "2021"
+description = "An xyflow-like library for building node-based editors in Dioxus"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/scrogson/flow-ui"
+keywords = ["dioxus", "flow", "node-editor", "graph", "ui"]
+categories = ["gui", "visualization"]
+
+[dependencies]
+dioxus = { version = "0.6", features = ["web"] }
+uuid = { version = "1.0", features = ["v4", "js"] }
+web-sys = { version = "0.3", features = [
+    "DomRect",
+    "Element",
+    "HtmlElement",
+    "MouseEvent",
+    "WheelEvent",
+    "Touch",
+    "TouchEvent",
+    "TouchList",
+    "Window",
+    "Document",
+] }
+wasm-bindgen = "0.2"
+gloo-timers = "0.3"
+
+[dev-dependencies]
+dioxus = { version = "0.6", features = ["web"] }
+
+[features]
+default = []
+
+[[example]]
+name = "basic"
+path = "examples/basic.rs"
+
+[[example]]
+name = "custom_nodes"
+path = "examples/custom_nodes.rs"
