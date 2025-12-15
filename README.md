@@ -2,7 +2,7 @@
 
 An xyflow-like library for building node-based editors and interactive diagrams in [Dioxus](https://dioxuslabs.com/).
 
-![Data Pipeline Builder](assets/screenshot.jpg)
+![Data Pipeline Builder](assets/screenshot.png)
 
 ## Features
 

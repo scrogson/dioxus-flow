@@ -225,10 +225,14 @@ pub fn NodeComponent<T: Clone + PartialEq + 'static>(props: NodeComponentProps<T
                     },
                 }
             }
-            // Node content - show label, falling back to id
+            // Node content - use children if provided, otherwise show label
             div {
                 class: "dioxus-flow-node-content",
-                {node.label.as_ref().unwrap_or(&node.id).clone()}
+                if props.children.is_ok() {
+                    {props.children}
+                } else {
+                    {node.label.as_ref().unwrap_or(&node.id).clone()}
+                }
             }
         }
     }

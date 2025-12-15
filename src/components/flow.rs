@@ -90,6 +90,9 @@ pub struct FlowProps<T: Clone + PartialEq + 'static> {
     /// Additional CSS class for the container.
     #[props(default)]
     pub class: String,
+    /// Custom node content renderer. Receives the node and should return the inner content.
+    #[props(default)]
+    pub node_render: Option<Callback<crate::types::Node<T>, Element>>,
     /// Additional children to render inside the flow.
     #[props(default)]
     pub children: Element,
@@ -743,15 +746,21 @@ pub fn Flow<T: Clone + Default + PartialEq + 'static>(props: FlowProps<T>) -> El
                 style: "position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: {transform}; transform-origin: 0 0; pointer-events: none;",
 
                 for node in nodes.iter() {
-                    NodeComponent {
-                        key: "{node.id}",
-                        node: node.clone(),
-                        zoom: current_zoom,
-                        dragging: dragging_node.read().as_ref().map(|(id, _)| id == &node.id).unwrap_or(false),
-                        on_select: on_node_select,
-                        on_drag_start: on_node_drag_start,
-                        on_connect_start: on_connect_start,
-                        on_connect_end: on_connect_end,
+                    {
+                        let custom_content = props.node_render.as_ref().map(|render| render.call(node.clone()));
+                        rsx! {
+                            NodeComponent {
+                                key: "{node.id}",
+                                node: node.clone(),
+                                zoom: current_zoom,
+                                dragging: dragging_node.read().as_ref().map(|(id, _)| id == &node.id).unwrap_or(false),
+                                on_select: on_node_select,
+                                on_drag_start: on_node_drag_start,
+                                on_connect_start: on_connect_start,
+                                on_connect_end: on_connect_end,
+                                {custom_content}
+                            }
+                        }
                     }
                 }
             }
