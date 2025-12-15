@@ -2,6 +2,8 @@
 
 An xyflow-like library for building node-based editors and interactive diagrams in [Dioxus](https://dioxuslabs.com/).
 
+![Data Pipeline Builder](assets/screenshot.jpg)
+
 ## Features
 
 - **Nodes**: Draggable nodes with customizable content
@@ -46,10 +48,18 @@ fn App() -> Element {
 
 ## Examples
 
-Run the basic example:
-
 ```bash
-dx serve --example basic
+# Data pipeline builder with multiple handles
+dx serve --example multi_handles
+
+# Custom styled nodes
+dx serve --example custom_nodes
+
+# CI/CD workflow visualization
+dx serve --example workflow
+
+# Full feature showcase
+dx serve --example full_features
 ```
 
 ## License
