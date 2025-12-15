@@ -53,14 +53,19 @@ fn parse_workflow(yaml: &str) -> (Vec<Node<JobData>>, Vec<Edge>) {
     let mut current_data = JobData::default();
     let mut needs: Vec<String> = Vec::new();
     let mut job_count = 0;
+    let mut in_jobs_section = false;
 
     for line in yaml.lines() {
         let trimmed = line.trim();
 
-        if trimmed.starts_with("name:") {
+        if trimmed.starts_with("name:") && !in_jobs_section {
             // Workflow name - skip for now
         } else if trimmed == "jobs:" {
             // Jobs section starts
+            in_jobs_section = true;
+        } else if !in_jobs_section {
+            // Skip everything before jobs section (on:, push:, pull_request:, etc.)
+            continue;
         } else if !trimmed.starts_with('-') && !trimmed.starts_with("needs:")
             && !trimmed.starts_with("runs-on:") && !trimmed.starts_with("steps:")
             && !trimmed.starts_with("name:") && !trimmed.starts_with("run:")
@@ -74,8 +79,10 @@ fn parse_workflow(yaml: &str) -> (Vec<Node<JobData>>, Vec<Edge>) {
                 job_positions.insert(job_id.clone(), (x, y));
 
                 let node = Node::new(&job_id, x, y)
+                    .with_label(&current_data.name)
                     .with_data(current_data.clone())
-                    .with_type(current_data.status.class());
+                    .with_type(current_data.status.class())
+                    .with_dimensions(180.0, 44.0);
                 nodes.push(node);
 
                 // Create edges from dependencies
@@ -124,8 +131,10 @@ fn parse_workflow(yaml: &str) -> (Vec<Node<JobData>>, Vec<Edge>) {
         job_positions.insert(job_id.clone(), (x, y));
 
         let node = Node::new(&job_id, x, y)
+            .with_label(&current_data.name)
             .with_data(current_data.clone())
-            .with_type(current_data.status.class());
+            .with_type(current_data.status.class())
+            .with_dimensions(180.0, 44.0);
         nodes.push(node);
 
         for dep in &needs {

@@ -645,7 +645,7 @@ pub fn Flow<T: Clone + Default + PartialEq + 'static>(props: FlowProps<T>) -> El
     rsx! {
         div {
             class: "dioxus-flow-container {props.class}",
-            style: "width: 100%; height: 100%; position: relative; overflow: hidden; outline: none;",
+            style: "width: 100%; height: 100%; position: absolute; top: 0; left: 0; overflow: hidden; outline: none; z-index: 1;",
             tabindex: "0",
             onkeydown: on_key_down,
             onkeyup: on_key_up,
@@ -663,18 +663,20 @@ pub fn Flow<T: Clone + Default + PartialEq + 'static>(props: FlowProps<T>) -> El
                 class: "dioxus-flow-edges",
                 style: "position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;",
 
-                // Defs for markers
+                // Defs for markers - arrow tip at endpoint
                 defs {
                     marker {
                         id: "dioxus-flow-arrowhead",
-                        marker_width: "12",
-                        marker_height: "12",
+                        view_box: "0 0 10 10",
+                        marker_width: "10",
+                        marker_height: "10",
                         ref_x: "10",
-                        ref_y: "6",
-                        orient: "auto",
-                        polygon {
-                            points: "0 0, 12 6, 0 12",
-                            fill: "#b1b1b7",
+                        ref_y: "5",
+                        orient: "auto-start-reverse",
+                        marker_units: "userSpaceOnUse",
+                        path {
+                            d: "M 0 0 L 10 5 L 0 10 z",
+                            fill: "#64748b",
                         }
                     }
                 }
@@ -688,13 +690,13 @@ pub fn Flow<T: Clone + Default + PartialEq + 'static>(props: FlowProps<T>) -> El
                             let target_node = state.read().get_node(&edge.target).cloned();
 
                             if let (Some(source), Some(target)) = (source_node, target_node) {
-                                // Try to get position from handle ID first, fall back to handle position
-                                let source_pos = edge.source_handle_id.as_ref()
-                                    .and_then(|id| source.handle_position_by_id(id))
-                                    .unwrap_or_else(|| source.handle_position(edge.source_handle));
-                                let target_pos = edge.target_handle_id.as_ref()
-                                    .and_then(|id| target.handle_position_by_id(id))
-                                    .unwrap_or_else(|| target.handle_position(edge.target_handle));
+                                // Try to get position and direction from handle ID first, fall back to handle position
+                                let (source_pos, source_dir) = edge.source_handle_id.as_ref()
+                                    .and_then(|id| source.handle_info_by_id(id))
+                                    .unwrap_or_else(|| (source.handle_position(edge.source_handle), edge.source_handle));
+                                let (target_pos, target_dir) = edge.target_handle_id.as_ref()
+                                    .and_then(|id| target.handle_info_by_id(id))
+                                    .unwrap_or_else(|| (target.handle_position(edge.target_handle), edge.target_handle));
 
                                 rsx! {
                                     EdgeComponent {
@@ -702,6 +704,8 @@ pub fn Flow<T: Clone + Default + PartialEq + 'static>(props: FlowProps<T>) -> El
                                         edge: edge.clone(),
                                         source_position: source_pos,
                                         target_position: target_pos,
+                                        source_handle_direction: source_dir,
+                                        target_handle_direction: target_dir,
                                         on_select: on_edge_select,
                                     }
                                 }
@@ -733,10 +737,10 @@ pub fn Flow<T: Clone + Default + PartialEq + 'static>(props: FlowProps<T>) -> El
                 }
             }
 
-            // Nodes layer
+            // Nodes layer - pointer-events: none so clicks pass through to container for panning
             div {
                 class: "dioxus-flow-nodes",
-                style: "position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: {transform}; transform-origin: 0 0;",
+                style: "position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: {transform}; transform-origin: 0 0; pointer-events: none;",
 
                 for node in nodes.iter() {
                     NodeComponent {
@@ -788,7 +792,9 @@ pub const FLOW_STYLES: &str = r#"
     cursor: grab;
     user-select: none;
     min-width: 150px;
+    min-height: 40px;
     text-align: center;
+    box-sizing: border-box;
 }
 
 .dioxus-flow-node:hover {

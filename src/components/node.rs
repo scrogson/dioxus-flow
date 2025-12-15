@@ -1,6 +1,6 @@
 //! Node component for the flow.
 
-use crate::types::{HandlePosition, Node, NodeId, Position};
+use crate::types::{HandleKind, HandlePosition, Node, NodeId, Position};
 use dioxus::prelude::*;
 
 /// Node component props.
@@ -53,10 +53,19 @@ pub fn NodeComponent<T: Clone + PartialEq + 'static>(props: NodeComponentProps<T
         ""
     };
 
+    // Build style with explicit dimensions if set
+    let dimensions = match (node.width, node.height) {
+        (Some(w), Some(h)) => format!(" width: {}px; height: {}px;", w, h),
+        (Some(w), None) => format!(" width: {}px;", w),
+        (None, Some(h)) => format!(" height: {}px;", h),
+        (None, None) => String::new(),
+    };
+
     let style = format!(
-        "position: absolute; left: {}px; top: {}px; transform: translate(0, 0);{}",
+        "position: absolute; left: {}px; top: {}px; box-sizing: border-box; pointer-events: auto;{}{}",
         node.position.x,
         node.position.y,
+        dimensions,
         node.style
             .iter()
             .map(|(k, v)| format!(" {}: {};", k, v))
@@ -96,11 +105,98 @@ pub fn NodeComponent<T: Clone + PartialEq + 'static>(props: NodeComponentProps<T
                     }
                 }
             },
-            // Render handles if connectable
-            if connectable {
-                // Source handle (bottom)
+            // Render handles from node.handles
+            if connectable && !node.handles.is_empty() {
+                for handle in node.handles.iter() {
+                    {
+                        let node_width = node.width.unwrap_or(150.0);
+                        let node_height = node.height.unwrap_or(40.0);
+                        let handle_id = handle.id.clone();
+                        let handle_pos = handle.position;
+                        let handle_kind = handle.kind;
+
+                        // Calculate position - use percentage for centering, pixels for explicit offsets
+                        let (style_pos, pos_class) = match handle_pos {
+                            HandlePosition::Top => {
+                                if let Some(offset) = handle.offset {
+                                    let x = offset * node_width;
+                                    (format!("top: 0; left: {}px; transform: translate(-50%, -50%);", x), "top")
+                                } else {
+                                    ("top: 0; left: 50%; transform: translate(-50%, -50%);".to_string(), "top")
+                                }
+                            }
+                            HandlePosition::Bottom => {
+                                if let Some(offset) = handle.offset {
+                                    let x = offset * node_width;
+                                    (format!("bottom: 0; left: {}px; transform: translate(-50%, 50%);", x), "bottom")
+                                } else {
+                                    ("bottom: 0; left: 50%; transform: translate(-50%, 50%);".to_string(), "bottom")
+                                }
+                            }
+                            HandlePosition::Left => {
+                                if let Some(offset) = handle.offset {
+                                    let y = offset * node_height;
+                                    (format!("left: 0; top: {}px; transform: translate(-50%, -50%);", y), "left")
+                                } else {
+                                    ("left: 0; top: 50%; transform: translate(-50%, -50%);".to_string(), "left")
+                                }
+                            }
+                            HandlePosition::Right => {
+                                if let Some(offset) = handle.offset {
+                                    let y = offset * node_height;
+                                    (format!("right: 0; top: {}px; transform: translate(50%, -50%);", y), "right")
+                                } else {
+                                    ("right: 0; top: 50%; transform: translate(50%, -50%);".to_string(), "right")
+                                }
+                            }
+                        };
+
+                        let kind_class = match handle_kind {
+                            HandleKind::Source => "source",
+                            HandleKind::Target => "target",
+                        };
+
+                        rsx! {
+                            div {
+                                key: "{handle_id}",
+                                class: "dioxus-flow-handle dioxus-flow-handle-{pos_class} dioxus-flow-handle-{kind_class}",
+                                style: "position: absolute; {style_pos}",
+                                "data-handle-id": "{handle_id}",
+                                "data-handle-type": "{kind_class}",
+                                "data-handle-position": "{pos_class}",
+                                onmousedown: {
+                                    let node_id = node_id.clone();
+                                    let handle_pos = handle_pos;
+                                    move |evt: MouseEvent| {
+                                        if handle_kind == HandleKind::Source {
+                                            evt.stop_propagation();
+                                            if let Some(handler) = &on_connect_start {
+                                                handler.call((node_id.clone(), handle_pos));
+                                            }
+                                        }
+                                    }
+                                },
+                                onmouseup: {
+                                    let node_id = node_id.clone();
+                                    let handle_pos = handle_pos;
+                                    move |evt: MouseEvent| {
+                                        if handle_kind == HandleKind::Target {
+                                            evt.stop_propagation();
+                                            if let Some(handler) = &on_connect_end {
+                                                handler.call((node_id.clone(), handle_pos));
+                                            }
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                    }
+                }
+            } else if connectable {
+                // Fallback: render default top/bottom handles
                 div {
                     class: "dioxus-flow-handle dioxus-flow-handle-bottom dioxus-flow-handle-source",
+                    style: "position: absolute; bottom: 0; left: 50%; transform: translate(-50%, 50%);",
                     "data-handle-type": "source",
                     "data-handle-position": "bottom",
                     onmousedown: {
@@ -113,9 +209,9 @@ pub fn NodeComponent<T: Clone + PartialEq + 'static>(props: NodeComponentProps<T
                         }
                     },
                 }
-                // Target handle (top)
                 div {
                     class: "dioxus-flow-handle dioxus-flow-handle-top dioxus-flow-handle-target",
+                    style: "position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%);",
                     "data-handle-type": "target",
                     "data-handle-position": "top",
                     onmouseup: {
@@ -129,15 +225,10 @@ pub fn NodeComponent<T: Clone + PartialEq + 'static>(props: NodeComponentProps<T
                     },
                 }
             }
-            // Node content
-            if props.children.is_ok() {
-                {props.children}
-            } else {
-                // Default node content - just show the type
-                div {
-                    class: "dioxus-flow-node-content",
-                    "{node.node_type}"
-                }
+            // Node content - show label, falling back to id
+            div {
+                class: "dioxus-flow-node-content",
+                {node.label.as_ref().unwrap_or(&node.id).clone()}
             }
         }
     }

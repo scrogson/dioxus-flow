@@ -13,6 +13,12 @@ pub struct EdgeComponentProps {
     pub source_position: Position,
     /// Target position in flow coordinates.
     pub target_position: Position,
+    /// Actual source handle direction (for path routing).
+    #[props(default)]
+    pub source_handle_direction: HandlePosition,
+    /// Actual target handle direction (for path routing).
+    #[props(default)]
+    pub target_handle_direction: HandlePosition,
     /// Callback when edge is selected.
     #[props(default)]
     pub on_select: Option<EventHandler<EdgeId>>,
@@ -26,8 +32,8 @@ pub fn EdgeComponent(props: EdgeComponentProps) -> Element {
         edge.edge_type,
         props.source_position,
         props.target_position,
-        edge.source_handle,
-        edge.target_handle,
+        props.source_handle_direction,
+        props.target_handle_direction,
     );
 
     let selected_class = if edge.selected {

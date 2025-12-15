@@ -2,6 +2,11 @@
 
 use std::collections::HashMap;
 
+/// Default node width in pixels. Used for edge calculations when no explicit width is set.
+pub const DEFAULT_NODE_WIDTH: f64 = 150.0;
+/// Default node height in pixels. Used for edge calculations when no explicit height is set.
+pub const DEFAULT_NODE_HEIGHT: f64 = 40.0;
+
 /// Unique identifier for nodes and edges.
 pub type NodeId = String;
 pub type EdgeId = String;
@@ -210,6 +215,8 @@ impl NodeHandle {
 pub struct Node<T = ()> {
     /// Unique identifier for the node.
     pub id: NodeId,
+    /// Display label for the node.
+    pub label: Option<String>,
     /// Position of the node in flow coordinates.
     pub position: Position,
     /// Width of the node (optional, defaults to auto-sizing).
@@ -247,6 +254,7 @@ impl<T: Default> Node<T> {
     pub fn new(id: impl Into<String>, x: f64, y: f64) -> Self {
         Self {
             id: id.into(),
+            label: None,
             position: Position::new(x, y),
             width: None,
             height: None,
@@ -272,6 +280,7 @@ impl<T: Default> Node<T> {
     pub fn new_without_handles(id: impl Into<String>, x: f64, y: f64) -> Self {
         Self {
             id: id.into(),
+            label: None,
             position: Position::new(x, y),
             width: None,
             height: None,
@@ -295,6 +304,12 @@ impl<T> Node<T> {
     /// Create a new node with custom data.
     pub fn with_data(mut self, data: T) -> Self {
         self.data = data;
+        self
+    }
+
+    /// Set the display label.
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
         self
     }
 
@@ -441,6 +456,15 @@ impl<T> Node<T> {
         let h = self.height.unwrap_or(40.0);
         self.get_handle(handle_id)
             .map(|handle| handle.absolute_position(self.position, w, h))
+    }
+
+    /// Get handle position and direction by handle ID.
+    /// Returns (absolute_position, handle_direction) for edge routing.
+    pub fn handle_info_by_id(&self, handle_id: &str) -> Option<(Position, HandlePosition)> {
+        let w = self.width.unwrap_or(150.0);
+        let h = self.height.unwrap_or(40.0);
+        self.get_handle(handle_id)
+            .map(|handle| (handle.absolute_position(self.position, w, h), handle.position))
     }
 }
 
@@ -967,7 +991,3 @@ impl<T: Clone> Default for ClipboardData<T> {
         }
     }
 }
-
-/// Default node dimensions.
-pub const DEFAULT_NODE_WIDTH: f64 = 150.0;
-pub const DEFAULT_NODE_HEIGHT: f64 = 40.0;

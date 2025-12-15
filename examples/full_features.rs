@@ -59,26 +59,40 @@ fn App() -> Element {
     // Create a sample task flow
     let initial_nodes = vec![
         Node::new("start", 50.0, 250.0)
+            .with_label("Start")
             .with_data(TaskData::new("Start", "Project kickoff", TaskStatus::Done))
-            .with_type("task-done"),
+            .with_type("task-done")
+            .with_dimensions(140.0, 44.0),
         Node::new("design", 250.0, 100.0)
+            .with_label("Design")
             .with_data(TaskData::new("Design", "Create mockups", TaskStatus::Done))
-            .with_type("task-done"),
+            .with_type("task-done")
+            .with_dimensions(140.0, 44.0),
         Node::new("research", 250.0, 400.0)
+            .with_label("Research")
             .with_data(TaskData::new("Research", "Market analysis", TaskStatus::Done))
-            .with_type("task-done"),
+            .with_type("task-done")
+            .with_dimensions(140.0, 44.0),
         Node::new("implement", 500.0, 200.0)
+            .with_label("Implement")
             .with_data(TaskData::new("Implement", "Build features", TaskStatus::InProgress))
-            .with_type("task-progress"),
+            .with_type("task-progress")
+            .with_dimensions(140.0, 44.0),
         Node::new("test", 500.0, 350.0)
+            .with_label("Test")
             .with_data(TaskData::new("Test", "QA testing", TaskStatus::Todo))
-            .with_type("task-todo"),
+            .with_type("task-todo")
+            .with_dimensions(140.0, 44.0),
         Node::new("review", 750.0, 250.0)
+            .with_label("Review")
             .with_data(TaskData::new("Review", "Code review", TaskStatus::Todo))
-            .with_type("task-todo"),
+            .with_type("task-todo")
+            .with_dimensions(140.0, 44.0),
         Node::new("deploy", 950.0, 250.0)
+            .with_label("Deploy")
             .with_data(TaskData::new("Deploy", "Ship to production", TaskStatus::Todo))
-            .with_type("task-todo"),
+            .with_type("task-todo")
+            .with_dimensions(140.0, 44.0),
     ];
 
     let initial_edges = vec![

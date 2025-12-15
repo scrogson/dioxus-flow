@@ -30,23 +30,41 @@ impl NodeData {
 
 #[component]
 fn App() -> Element {
-    // Create nodes with custom data
+    // Create nodes with custom data - use explicit handles for left-to-right flow
     let initial_nodes = vec![
-        Node::new("start", 50.0, 200.0)
+        Node::new_without_handles("start", 50.0, 200.0)
+            .with_label("start")
             .with_data(NodeData::new("Start", "Begin workflow", "#22c55e"))
-            .with_type("start"),
-        Node::new("process1", 250.0, 100.0)
+            .with_type("start")
+            .with_dimensions(120.0, 50.0)
+            .with_handle(NodeHandle::source("out")),
+        Node::new_without_handles("process1", 300.0, 100.0)
+            .with_label("process1")
             .with_data(NodeData::new("Process A", "First processing step", "#3b82f6"))
-            .with_type("process"),
-        Node::new("process2", 250.0, 300.0)
+            .with_type("process")
+            .with_dimensions(120.0, 50.0)
+            .with_handle(NodeHandle::target("in"))
+            .with_handle(NodeHandle::source("out")),
+        Node::new_without_handles("process2", 300.0, 300.0)
+            .with_label("process2")
             .with_data(NodeData::new("Process B", "Alternative path", "#3b82f6"))
-            .with_type("process"),
-        Node::new("decision", 450.0, 200.0)
+            .with_type("process")
+            .with_dimensions(120.0, 50.0)
+            .with_handle(NodeHandle::target("in"))
+            .with_handle(NodeHandle::source("out")),
+        Node::new_without_handles("decision", 550.0, 200.0)
+            .with_label("decision")
             .with_data(NodeData::new("Decision", "Choose path", "#f59e0b"))
-            .with_type("decision"),
-        Node::new("end", 650.0, 200.0)
+            .with_type("decision")
+            .with_dimensions(120.0, 50.0)
+            .with_handle(NodeHandle::target("in"))
+            .with_handle(NodeHandle::source("out")),
+        Node::new_without_handles("end", 750.0, 200.0)
+            .with_label("end")
             .with_data(NodeData::new("End", "Workflow complete", "#ef4444"))
-            .with_type("end"),
+            .with_type("end")
+            .with_dimensions(120.0, 50.0)
+            .with_handle(NodeHandle::target("in")),
     ];
 
     let initial_edges = vec![
@@ -82,17 +100,21 @@ fn App() -> Element {
         let count = *node_count.read() + 1;
         node_count.set(count);
 
-        let new_node = Node::new(
+        let new_node = Node::new_without_handles(
             format!("node{}", count),
             100.0 + (count as f64 * 50.0) % 400.0,
             100.0 + (count as f64 * 30.0) % 300.0,
         )
+        .with_label(&format!("node{}", count))
         .with_data(NodeData::new(
             &format!("Node {}", count),
             "Dynamically added",
             "#8b5cf6",
         ))
-        .with_type("dynamic");
+        .with_type("dynamic")
+        .with_dimensions(120.0, 50.0)
+        .with_handle(NodeHandle::target("in"))
+        .with_handle(NodeHandle::source("out"));
 
         state.write().add_node(new_node);
     };
@@ -144,6 +166,11 @@ fn App() -> Element {
             }}
             .dioxus-flow-node {{
                 min-width: 120px;
+                min-height: 50px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 8px;
             }}
             .dioxus-flow-node-start {{
                 background: linear-gradient(135deg, #22c55e, #16a34a);
