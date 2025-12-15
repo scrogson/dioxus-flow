@@ -44,3 +44,7 @@ path = "examples/custom_nodes.rs"
 [[example]]
 name = "workflow"
 path = "examples/workflow.rs"
+
+[[example]]
+name = "full_features"
+path = "examples/full_features.rs"

@@ -341,4 +341,168 @@ pub enum FlowEvent {
     },
     /// Viewport changed.
     ViewportChange(Viewport),
+    /// Nodes were deleted.
+    NodesDelete(Vec<NodeId>),
+    /// Edges were deleted.
+    EdgesDelete(Vec<EdgeId>),
 }
+
+/// Snap grid configuration.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SnapGrid {
+    /// Whether snap to grid is enabled.
+    pub enabled: bool,
+    /// Grid cell size in pixels.
+    pub size: f64,
+}
+
+impl Default for SnapGrid {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            size: 15.0,
+        }
+    }
+}
+
+impl SnapGrid {
+    /// Create a new snap grid.
+    pub fn new(size: f64) -> Self {
+        Self {
+            enabled: true,
+            size,
+        }
+    }
+
+    /// Snap a position to the grid.
+    pub fn snap(&self, position: Position) -> Position {
+        if !self.enabled {
+            return position;
+        }
+        Position {
+            x: (position.x / self.size).round() * self.size,
+            y: (position.y / self.size).round() * self.size,
+        }
+    }
+}
+
+/// Connection validation result.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConnectionValidation {
+    /// Whether the connection is valid.
+    pub is_valid: bool,
+    /// Optional message explaining why invalid.
+    pub message: Option<String>,
+}
+
+impl ConnectionValidation {
+    /// Create a valid connection result.
+    pub fn valid() -> Self {
+        Self {
+            is_valid: true,
+            message: None,
+        }
+    }
+
+    /// Create an invalid connection result.
+    pub fn invalid(message: impl Into<String>) -> Self {
+        Self {
+            is_valid: false,
+            message: Some(message.into()),
+        }
+    }
+}
+
+/// Pending connection info for validation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PendingConnection {
+    /// Source node ID.
+    pub source: NodeId,
+    /// Source handle position.
+    pub source_handle: HandlePosition,
+    /// Target node ID.
+    pub target: NodeId,
+    /// Target handle position.
+    pub target_handle: HandlePosition,
+}
+
+/// Edge marker (arrow) type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MarkerType {
+    #[default]
+    Arrow,
+    ArrowClosed,
+    None,
+}
+
+/// Marker configuration for edge ends.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EdgeMarker {
+    /// Marker type.
+    pub marker_type: MarkerType,
+    /// Marker color (defaults to edge stroke color).
+    pub color: Option<String>,
+    /// Marker width.
+    pub width: f64,
+    /// Marker height.
+    pub height: f64,
+}
+
+impl Default for EdgeMarker {
+    fn default() -> Self {
+        Self {
+            marker_type: MarkerType::Arrow,
+            color: None,
+            width: 12.0,
+            height: 12.0,
+        }
+    }
+}
+
+/// Selection rectangle for multi-select.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct SelectionRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl SelectionRect {
+    /// Check if a point is inside the rectangle.
+    pub fn contains(&self, x: f64, y: f64) -> bool {
+        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
+    }
+
+    /// Check if another rectangle intersects with this one.
+    pub fn intersects(&self, other: &SelectionRect) -> bool {
+        !(other.x > self.x + self.width
+            || other.x + other.width < self.x
+            || other.y > self.y + self.height
+            || other.y + other.height < self.y)
+    }
+
+    /// Check if a node intersects with this rectangle.
+    pub fn intersects_node<T>(&self, node: &Node<T>) -> bool {
+        let node_rect = SelectionRect {
+            x: node.position.x,
+            y: node.position.y,
+            width: node.width.unwrap_or(150.0),
+            height: node.height.unwrap_or(40.0),
+        };
+        self.intersects(&node_rect)
+    }
+}
+
+/// Keyboard modifiers state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct KeyboardModifiers {
+    pub shift: bool,
+    pub ctrl: bool,
+    pub alt: bool,
+    pub meta: bool,
+}
+
+/// Default node dimensions.
+pub const DEFAULT_NODE_WIDTH: f64 = 150.0;
+pub const DEFAULT_NODE_HEIGHT: f64 = 40.0;

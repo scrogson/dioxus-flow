@@ -34,10 +34,20 @@ pub mod utils;
 
 pub mod prelude {
     //! Convenient re-exports for common usage.
-    pub use crate::components::edge::EdgeComponent;
-    pub use crate::components::flow::Flow;
+
+    // Components
+    pub use crate::components::background::{Background, BackgroundVariant};
+    pub use crate::components::controls::{Controls, ControlsPosition, CONTROLS_STYLES};
+    pub use crate::components::edge::{ConnectionLine, EdgeComponent};
+    pub use crate::components::flow::{Flow, FLOW_STYLES};
     pub use crate::components::handle::{Handle, HandleType};
+    pub use crate::components::minimap::{MiniMap, MiniMapPosition};
     pub use crate::components::node::NodeComponent;
+    pub use crate::components::selection_box::{SelectionBox, SelectionBoxState, SELECTION_BOX_STYLES};
+
+    // Hooks
     pub use crate::hooks::{use_flow, FlowState};
+
+    // Types
     pub use crate::types::*;
 }
